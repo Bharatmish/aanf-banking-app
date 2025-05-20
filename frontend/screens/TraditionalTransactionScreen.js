@@ -5,7 +5,7 @@ import { traditionalTransaction } from '../services/api';
 import { getToken, removeToken } from '../utils/storage';
 import { useNavigation } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
-import { saveTransaction } from '../utils/saveTransaction'; // ✅ Import here
+import { saveSecureTransaction } from '../utils/secureTransactions'; // Fixed import
 
 export default function TraditionalTransactionScreen() {
   const [amount, setAmount] = useState('');
@@ -32,8 +32,8 @@ export default function TraditionalTransactionScreen() {
     try {
       await traditionalTransaction({ amount: amountValue }, token);
 
-      // ✅ Save transaction
-      await saveTransaction(amountValue, 'Traditional');
+      // ✅ Save secure transaction
+      await saveSecureTransaction(amountValue, 'Traditional');
 
       Toast.show({ type: 'success', text1: 'Transaction successful' });
       navigation.navigate('TransactionSuccessScreen', {

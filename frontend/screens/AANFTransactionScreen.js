@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Keyboard } from 'react-native';
 import { Title, Text, TextInput, Button } from 'react-native-paper';
-import { aanfTransaction } from '../services/api';
+import { aanfTransaction, BASE_URL } from '../services/api'; // Added BASE_URL import here
 import { getToken, removeToken } from '../utils/storage';
 import { useNavigation } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
-import { saveTransaction } from '../utils/saveTransaction'; // ✅ Import here
+import { saveSecureTransaction } from '../utils/secureTransactions';
+import CryptoJS from 'crypto-js';
 
 export default function AANFTransactionScreen() {
   const [amount, setAmount] = useState('');
@@ -19,34 +20,126 @@ export default function AANFTransactionScreen() {
     debugToken();
   }, []);
 
+const createHmacSignature = (data, key) => {
+  try {
+    // Create canonical form with sorted keys, ensuring amount is a float with .0
+    const amountAsFloat = parseFloat(parseFloat(data.amount).toFixed(1)); // Ensure float with one decimal
+    const canonicalObj = { amount: amountAsFloat };
+    // Manually create JSON string to ensure {"amount":500.0}
+    const canonicalData = `{"amount":${amountAsFloat.toFixed(1)}}`;
+    
+    if (__DEV__) {
+      console.log('Canonical data:', canonicalData);
+      console.log('Using KAF:', key.substring(0, 8) + '...');
+    }
+    
+    // Generate HMAC-SHA256 signature
+    const hmacSignature = CryptoJS.HmacSHA256(canonicalData, key).toString(CryptoJS.enc.Hex);
+    
+    if (__DEV__) {
+      console.log('JSON string for signing:', canonicalData);
+      console.log('Signature generated:', hmacSignature);
+    }
+    
+    return hmacSignature;
+  } catch (error) {
+    console.error("Signature generation error:", error);
+    throw error;
+  }
+};
+
   const handleTransaction = async () => {
+    console.log("\n=========== 💰 AANF TRANSACTION STARTED ===========");
+    console.log(`💲 Transaction amount: ${amount}`);
+    
     Keyboard.dismiss();
     const akmaKey = await getToken('akma-key');
     const amountValue = parseFloat(amount);
+    
+    console.log(`🔑 Using AKMA key: ${akmaKey ? (akmaKey.substring(0, 8) + '...') : 'Not found'}`);
 
     if (isNaN(amountValue)) {
+      console.log("❌ Invalid amount entered");
       alert('Please enter a valid amount');
       return;
     }
 
     try {
-      await aanfTransaction({ amount: amountValue }, akmaKey);
+      // Create transaction data
+      const transactionData = { amount: parseFloat(amountValue) };
+      console.log("📋 Transaction data:", transactionData);
+      
+      // Get KAF from secure storage
+      const kaf = await getToken('kaf-transactions');
+      console.log(`🔐 KAF retrieved: ${kaf ? 'Yes' : 'No'} ${kaf ? '(' + kaf.substring(0, 8) + '...)' : ''}`);
+      
+      // Create signature
+      let signature = null;
+      if (kaf) {
+        try {
+          console.log("🔏 Generating transaction signature...");
+          signature = createHmacSignature(transactionData, kaf);
+          console.log(`✅ Signature generated: ${signature.substring(0, 16)}...`);
+        } catch (sigErr) {
+          console.error('❌ Error generating signature:', sigErr);
+        }
+      }
 
-      // ✅ Save transaction
-      await saveTransaction(amountValue, 'AANF');
-
+      // Log the exact headers and data being sent
+      const headers = { 'x-akma-key': akmaKey };
+      if (signature) {
+        headers['x-transaction-sig'] = signature;
+      }
+      console.log("📤 Sending transaction with headers:", headers);
+      console.log("📤 Transaction data:", transactionData);
+      
+      // Send transaction
+      console.log(`📤 Sending transaction request to: ${BASE_URL}/aanf/transaction`);
+      const response = await aanfTransaction(transactionData, akmaKey, signature);
+      console.log("✅ Transaction successful, response:", response.data);
+      
+      // Save to secure storage
+      await saveSecureTransaction(amountValue, 'AANF');
+      console.log("💾 Transaction saved to secure storage");
+      
+      console.log("=========== 💰 AANF TRANSACTION COMPLETE ===========\n");
+      
       Toast.show({ type: 'success', text1: 'Transaction successful via AANF' });
       navigation.navigate('TransactionSuccessScreen', {
         amount: amountValue,
         flow: 'AANF',
       });
-    } catch {
-      Toast.show({ type: 'error', text1: 'Transaction failed' });
+    } catch (error) {
+      console.log("\n=========== ❌ AANF TRANSACTION FAILED ===========");
+      console.error('Transaction error:', error);
+      
+      // Detailed error logging
+      if (error.response) {
+        console.log(`❌ Server responded with status: ${error.response.status}`);
+        console.log('❌ Response data:', error.response.data);
+        console.log('❌ Response headers:', error.response.headers);
+      } else if (error.request) {
+        console.log('❌ No response received:', error.request);
+      } else {
+        console.log(`❌ Error setting up request: ${error.message}`);
+      }
+      console.log("=========== ❌ AANF TRANSACTION FAILED ===========\n");
+      
+      // More specific error messages based on error type
+      const errorMsg = error.response?.data?.detail || 
+                      error.message || 
+                      'Transaction failed';
+      Toast.show({ 
+        type: 'error', 
+        text1: 'Transaction Failed', 
+        text2: errorMsg 
+      });
     }
   };
 
   const handleLogout = async () => {
     await removeToken('akma-key');
+    await removeToken('kaf-transactions');
     Toast.show({ type: 'info', text1: 'Logged out' });
     navigation.reset({
       index: 0,

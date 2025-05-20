@@ -66,3 +66,19 @@ The app uses two storage mechanisms:
 ## Development
 
 When testing the AANF flow, the app is configured to use "Jio" as a trusted carrier for demonstration purposes.
+
+## Troubleshooting
+
+- **API Connection Issues**:
+  - Ensure your backend server is running
+  - Update `services/api.js` with the correct IP address (not localhost)
+  - For Android emulators, use `10.0.2.2` instead of `localhost`
+- **Expo errors**:
+  - Run `npm install` again to ensure all dependencies are installed
+  - Delete the `node_modules` folder and run `npm install` if you see module resolution errors
+  - Check that Expo SDK versions are compatible with your Node.js version
+
+## Environment Setup
+
+Create a `.env` file in the frontend directory with:
+EXPO_API_URL=http://YOUR_IP:8000

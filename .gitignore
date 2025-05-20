@@ -1,0 +1,24 @@
+# Environment variables
+.env
+.env.local
+.env.*
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Editor directories
+.idea/
+.vscode/
+*.sublime-*
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
