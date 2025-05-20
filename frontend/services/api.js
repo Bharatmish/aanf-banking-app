@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 
 // Get API URL from environment or use a default for development
 export const BASE_URL = Constants.expoConfig?.extra?.apiUrl || 
-                       (__DEV__ ? 'http://10.3.184.11:8000' : 'https://api.aanfbanking.com');
+                       (__DEV__ ? 'https://ec43-2409-40f4-40cd-c746-78f5-eeaa-4d86-f725.ngrok-free.app' : 'https://api.aanfbanking.com');
 
 // API endpoints for traditional authentication flow
 export const login = (data) => axios.post(`${BASE_URL}/traditional/login`, data);
