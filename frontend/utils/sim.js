@@ -69,16 +69,62 @@ export const generateAKID = async () => {
 
 // Derive K_AF (Application Function Key) for a specific function
 export const deriveKAF = async (functionId) => {
-  const kakma = await SecureStore.getItemAsync('kakma-key') || await deriveKAKMA();
-  const afid = functionId || 'transactions'; // Default function ID
-  
-  const kaf = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    `${kakma}:${afid}`
-  );
-  
-  await SecureStore.setItemAsync(`kaf-${afid}`, kaf);
-  return kaf;
+    console.log(`🔐 [SIM] Deriving KAF for function: ${functionId}`);
+    
+    // Get AKMA key from secure storage - we'll need to use this for server communication
+    const akmaKey = await SecureStore.getItemAsync('akma-key');
+    
+    if (!akmaKey) {
+        console.log("❌ [SIM] No AKMA key found, cannot derive KAF");
+        // Instead of throwing error, provide fallback for testing
+        if (__DEV__) {
+            console.log("⚠️ [SIM] DEV MODE: Using fallback key for development");
+            // Return development fallback so app doesn't crash
+            return "fallback-dev-kaf-do-not-use-in-production";
+        }
+        throw new Error("Authentication required");
+    }
+    
+    try {
+        // Check for existing KAF for this function
+        const existingKaf = await SecureStore.getItemAsync(`kaf-${functionId}`);
+        
+        // Instead of deriving locally, get the KAF expiry from secure storage
+        const kafExpiry = await SecureStore.getItemAsync('kaf-expiry');
+        const now = Math.floor(Date.now() / 1000);
+        
+        // Only fetch new KAF if necessary - check if we have valid KAF that's not expired
+        if (!existingKaf || !kafExpiry || now > parseInt(kafExpiry)) {
+            console.log(`🔄 [SIM] Deriving new KAF for function: ${functionId}`);
+            
+            // For demo purposes, derive KAF based on AKMA key
+            // In production, this would be securely derived through the SIM
+            const afid = functionId || 'transactions';
+            
+            // Debug info - just print the first 8 chars of the kakma key
+            const kakmaPartial = akmaKey.substring(0, 8) + "...";
+            console.log(`🔑 [SIM] Using AKMA key: ${kakmaPartial} with function: ${afid}`);
+            
+            // Use the same derivation method as the backend
+            const message = `${akmaKey}${afid}AANF Banking App KAF Derivation`;
+            const kaf = await Crypto.digestStringAsync(
+                Crypto.CryptoDigestAlgorithm.SHA256,
+                message
+            );
+            
+            console.log(`🔑 [SIM] KAF derived: ${kaf.substring(0, 8)}...`);
+            await SecureStore.setItemAsync(`kaf-${afid}`, kaf);
+            
+            return kaf;
+        } else {
+            console.log(`✅ [SIM] Using existing valid KAF for ${functionId}`);
+            console.log(`⏱️ [SIM] KAF expires at: ${new Date(parseInt(kafExpiry) * 1000).toLocaleString()}`);
+            return existingKaf;
+        }
+    } catch (error) {
+        console.error(`❌ [SIM] KAF derivation error: ${error.message}`);
+        throw error;
+    }
 };
 
 // Encrypt transaction data with K_AF
@@ -115,4 +161,33 @@ export const verifyTransaction = async (encryptedData) => {
   }
   
   return JSON.parse(data);
+};
+
+// Simulate primary authentication process
+export const simulatePrimaryAuthentication = async () => {
+    console.log("🔐 [SIM] Simulating primary authentication...");
+    
+    // Get device identifier first - we need this for Ki derivation
+    const deviceId = await getDeviceIdentifier();
+    console.log(`📱 [SIM] Using device ID: ${deviceId}`);
+    
+    // Generate a challenge
+    const challenge = await Crypto.getRandomBytesAsync(16).then(bytes =>
+        Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
+    );
+    console.log(`📡 [SIM] Generated challenge: ${challenge.substring(0, 8)}...`);
+    
+    // Get Ki - for the demo this should be deterministic based on deviceId and challenge
+    // to ensure the backend can verify it
+    const ki = await getKi();
+    console.log(`🔑 [SIM] Using Ki: ${ki.substring(0, 8)}...`);
+    
+    // Compute response using SHA-256 (same as backend)
+    const response = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        `${ki}:${challenge}`
+    );
+    console.log(`📡 [SIM] Generated response: ${response.substring(0, 8)}...`);
+    
+    return { challenge, response };
 };

@@ -14,7 +14,7 @@ import * as Network from 'expo-network';
 import { authenticateAANF, createAANFSession, BASE_URL } from '../services/api';
 import { saveToken } from '../utils/storage';
 import { useNavigation } from '@react-navigation/native';
-import { deriveKAF } from '../utils/sim';
+import { deriveKAF, simulatePrimaryAuthentication, getDeviceIdentifier } from '../utils/sim';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -77,87 +77,138 @@ export default function AANFAuthScreen() {
     setTimeout(() => setStep(newStep), 200);
   };
 
-  useEffect(() => {
-    const verifyDeviceAndAuthenticate = async () => {
+  const verifyDeviceAndAuthenticate = async () => {
+    setLoading(true);
+    try {
       console.log("\n=========== 🔐 AANF AUTHENTICATION STARTED ===========");
-      
+
       animateStepChange('Detecting device information...');
       animateProgress(0.25);
-      
+
       const net = await Network.getNetworkStateAsync();
       const carrierName = net?.carrier || 'Unknown';
       const modelName = Device.modelName || 'Generic';
-      
+
       console.log(`📱 Device details - Model: ${modelName} | Carrier: ${carrierName}`);
       setCarrier(carrierName);
       setModel(modelName);
 
-      setTimeout(async () => {
-        try {
-          animateStepChange('Authenticating with SIM credentials...');
-          animateProgress(0.5);
-          
-          console.log(`🔑 Sending authentication request to server: ${BASE_URL}/aanf/authenticate`);
-          
-          const authResponse = await authenticateAANF({ carrier: carrierName, model: modelName });
-          const akmaKeyReceived = authResponse.data.akma_key;
-          await saveToken('akma-key', akmaKeyReceived);
-          
-          console.log(`✅ Authentication successful, received AKMA key: ${akmaKeyReceived.substring(0, 8)}...`);
-          
-          animateStepChange('Creating secure session...');
-          animateProgress(0.75);
-          
-          try {
-            console.log(`🔄 Creating AANF session for function: transactions`);
-            const sessionResponse = await createAANFSession('transactions', akmaKeyReceived);
-            console.log('Session created successfully:', sessionResponse.data);
-            
-            if (sessionResponse.data && sessionResponse.data.kaf) {
-              await saveToken('kaf-transactions', sessionResponse.data.kaf);
-              console.log(`✅ Session created, received KAF: ${sessionResponse.data.kaf.substring(0, 8)}...`);
-            } else {
-              const kaf = await deriveKAF('transactions');
-              console.log('KAF derived locally');
-            }
+      animateStepChange('Authenticating with SIM credentials...');
+      animateProgress(0.5);
+      
+      // Get device identifier
+      const deviceId = await getDeviceIdentifier();
+      
+      // Simulate primary authentication
+      const { challenge, response } = await simulatePrimaryAuthentication();
+      console.log(`📤 Authentication payload:`, { 
+        carrier: carrierName, 
+        model: modelName,
+        device_id: deviceId,
+        challenge,
+        response
+      });
 
-            animateStepChange('Authentication complete!');
-            animateProgress(1);
-            
-            setTimeout(() => {
-              navigation.navigate('AANFTransactionScreen');
-            }, 800);
-          } catch (sessionErr) {
-            console.error('Session creation failed:', sessionErr);
-            
-            let errorMessage = 'Failed to initialize secure session';
-            if (!net.isConnected) {
-              errorMessage = 'No network connection. Please check your internet and try again.';
-            } else if (sessionErr.response && sessionErr.response.status === 403) {
-              errorMessage = 'Session authorization failed. Please try again.';
-            } else if (sessionErr.code === 'ECONNABORTED') {
-              errorMessage = 'Connection timeout. Server might be unavailable.';
-            }
-            
-            setLoading(false);
-            alert(errorMessage);
-          }
-        } catch (authErr) {
-          console.error('Authentication failed:', authErr);
-          
-          let errorMessage = 'SIM-based authentication failed';
-          if (!net.isConnected) {
-            errorMessage = 'No network connection. Please check your internet and try again.';
-          } else if (authErr.response && authErr.response.status === 403) {
-            errorMessage = 'Your carrier is not supported for secure authentication.';
-          }
-          
-          setLoading(false);
-          alert(errorMessage);
+      // Send device info and challenge-response to backend
+      console.log(`📤 Sending authentication request to backend...`);
+      const authResponse = await authenticateAANF({
+        carrier: carrierName,
+        model: modelName,
+        device_id: deviceId,
+        challenge,
+        response
+      });
+
+      const akmaKeyReceived = authResponse.data.akma_key;
+      await saveToken('akma-key', akmaKeyReceived);
+      console.log(`✅ Authentication successful, received AKMA key: ${akmaKeyReceived.substring(0, 8)}...`);
+      
+      animateStepChange('Creating secure session...');
+      animateProgress(0.75);
+
+      try {
+        console.log(`🔄 Creating AANF session for function: transactions`);
+        const sessionResponse = await createAANFSession('transactions', akmaKeyReceived);
+        console.log('Session created successfully:', sessionResponse.data);
+        
+        // Derive KAF locally for transactions
+        const localKaf = await deriveKAF('transactions');
+        await saveToken('kaf-transactions', localKaf);
+        
+        // Store expiry time from response
+        if (sessionResponse.data && sessionResponse.data.expiry_time) {
+          await saveToken('kaf-expiry', sessionResponse.data.expiry_time.toString());
+          console.log(`⏱️ Session expiry set: ${new Date(sessionResponse.data.expiry_time * 1000).toLocaleString()}`);
         }
-      }, 1500);
-    };
 
+        console.log(`✅ AANF authentication complete! Ready for secure transactions.`);
+        console.log("=========== 🔐 AANF AUTHENTICATION COMPLETED ===========\n");
+        
+        animateStepChange('Authentication complete!');
+        animateProgress(1);
+        
+        // Delay navigation slightly to show the completion state
+        setTimeout(() => {
+          navigation.navigate('AANFTransactionScreen');
+        }, 800);
+      } catch (sessionErr) {
+        console.error('Session creation failed:', sessionErr);
+        
+        // Provide detailed error information
+        console.log("===== SESSION ERROR DETAILS =====");
+        if (sessionErr.response) {
+          console.log(`Status: ${sessionErr.response.status}`);
+          console.log(`Data:`, sessionErr.response.data);
+          console.log(`Headers:`, sessionErr.response.headers);
+        } else if (sessionErr.request) {
+          console.log('No response received:', sessionErr.request);
+        } else {
+          console.log(`Error message: ${sessionErr.message}`);
+        }
+        
+        let errorMessage = 'Failed to initialize secure session';
+        if (!net.isConnected) {
+          errorMessage = 'No network connection. Please check your internet and try again.';
+        } else if (sessionErr.response && sessionErr.response.status === 403) {
+          errorMessage = 'Session authorization failed. Please try again.';
+        } else if (sessionErr.code === 'ECONNABORTED') {
+          errorMessage = 'Connection timeout. Server might be unavailable.';
+        }
+        
+        setLoading(false);
+        alert(errorMessage);
+        console.log("=========== ❌ AANF AUTHENTICATION FAILED ===========\n");
+      }
+    } catch (authErr) {
+      console.error('Authentication failed:', authErr);
+      
+      // Provide detailed error information
+      console.log("===== AUTHENTICATION ERROR DETAILS =====");
+      if (authErr.response) {
+        console.log(`Status: ${authErr.response.status}`);
+        console.log(`Data:`, authErr.response.data);
+        console.log(`Headers:`, authErr.response.headers);
+      } else if (authErr.request) {
+        console.log('No response received:', authErr.request);
+      } else {
+        console.log(`Error message: ${authErr.message}`);
+      }
+      
+      let errorMessage = 'SIM-based authentication failed';
+      if (!net?.isConnected) {
+        errorMessage = 'No network connection. Please check your internet and try again.';
+      } else if (authErr.response && authErr.response.status === 403) {
+        errorMessage = 'Your carrier is not supported for secure authentication.';
+      }
+      
+      setLoading(false);
+      alert(errorMessage);
+      console.log("=========== ❌ AANF AUTHENTICATION FAILED ===========\n");
+    }
+  };
+
+  // Call the authentication function when component mounts
+  useEffect(() => {
     verifyDeviceAndAuthenticate();
   }, []);
 

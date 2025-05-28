@@ -46,7 +46,7 @@ def generate_akid(kakma):
 
 def derive_kaf(kakma, afid):
     """
-    Derive KAF (Application Function Key) using HKDF
+    Derive KAF (Application Function Key) using SHA-256
     
     Args:
         kakma: Authentication Key Material
@@ -59,24 +59,23 @@ def derive_kaf(kakma, afid):
     
     if not kakma or not afid:
         raise ValueError("KAKMA and AFID must not be empty")
+    
+    # In this implementation, we're using akid directly instead of kakma
+    # This is for demo/testing purposes - in production,
+    # KAF would be derived using the proper key material
         
-    # HKDF with SHA-256
-    kakma_bytes = kakma.encode() if isinstance(kakma, str) else kakma
-    salt = afid.encode() if isinstance(afid, str) else afid
+    # Ensure consistent string encoding between frontend and backend
+    kakma_str = kakma if isinstance(kakma, str) else kakma.decode()
+    afid_str = afid if isinstance(afid, str) else afid.decode()
     
-    # Use HKDF to derive KAF
-    hkdf = HKDF(
-        algorithm=hashes.SHA256(),
-        length=32,  # 256 bits
-        salt=salt,
-        info=b"AANF Banking App KAF Derivation",
-        backend=default_backend()
-    )
+    # Match frontend KAF derivation exactly
+    # The frontend concatenates these without separators
+    message = f"{kakma_str}{afid_str}AANF Banking App KAF Derivation"
     
-    kaf = hkdf.derive(kakma_bytes)
-    kaf_hex = kaf.hex()
-    print(f"🔑 [CRYPTO] KAF derived: {kaf_hex[:8]}...")
-    return kaf_hex
+    h = hashlib.sha256(message.encode())
+    kaf = h.hexdigest()
+    print(f"🔐 [CRYPTO] KAF derived: {kaf[:8]}...")
+    return kaf
 
 def sign_transaction(data, kaf):
     """
@@ -90,6 +89,7 @@ def sign_transaction(data, kaf):
         HMAC signature
     """
     print(f"📝 [CRYPTO] Signing data with KAF: {kaf[:8]}...")
+    print(f"📄 [CRYPTO] Data to sign: {data}")
     
     if isinstance(data, dict):
         # Match the frontend's JSON.stringify behavior - no spaces after colons
