@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Optional
 
 class LoginRequest(BaseModel):
     username: str
@@ -9,3 +10,6 @@ class OTPRequest(BaseModel):
 
 class TransactionRequest(BaseModel):
     amount: float
+
+class SessionRequest(BaseModel):
+    function_id: Optional[str] = "transactions"

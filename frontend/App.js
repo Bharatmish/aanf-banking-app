@@ -8,6 +8,7 @@ import {
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import StackNavigator from './navigation/StackNavigator';
 import Toast from 'react-native-toast-message';
+import ErrorBoundary from './components/ErrorBoundary';
 
 export default function App() {
   const scheme = useColorScheme(); // 'light' or 'dark'
@@ -17,9 +18,11 @@ export default function App() {
 
   return (
     <PaperProvider theme={paperTheme}>
-      <NavigationContainer theme={navigationTheme}>
-        <StackNavigator />
-      </NavigationContainer>
+      <ErrorBoundary>
+        <NavigationContainer theme={navigationTheme}>
+          <StackNavigator />
+        </NavigationContainer>
+      </ErrorBoundary>
       <Toast />
     </PaperProvider>
   );
