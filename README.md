@@ -1,94 +1,131 @@
 # AANF Banking App
 
-A secure banking application with Advanced Authentication and Network Fingerprinting (AANF) technology.
+A secure banking application demonstrating Advanced Authentication and Network Fingerprinting (AANF) technology.
 
 ## Project Overview
 
-This project is a mobile banking application that demonstrates enhanced security through advanced authentication techniques and network fingerprinting. The application consists of two main components:
+This application showcases enhanced security through advanced authentication techniques and network fingerprinting, with both traditional and SIM-based authentication flows. The project consists of:
 
-- **Frontend**: A React Native mobile app built with Expo
-- **Backend**: A FastAPI-based server providing authentication and banking services
+- **Frontend**: React Native mobile app built with Expo
+- **Backend**: FastAPI server providing authentication and banking services
 
 ## Features
 
 - 📱 Mobile banking interface with modern UI
-- 🔐 Multi-factor authentication (Password + OTP)
-- 📍 Network fingerprinting for enhanced security
-- 💸 Basic banking operations (balance check, transfers)
-- 📊 Transaction history and account management
-- ⚡ Fast and responsive API
+- 🔐 Dual authentication flows:
+  - Traditional: Username/password + OTP
+  - AANF: SIM-based authentication with crypto signatures
+- 💳 Secure transaction processing with signature verification
+- 📊 Transaction history with integrity verification
+- 🛡️ Secure storage for sensitive data
 
 ## Project Structure
 
 ```
 aanf-banking-app/
+├── .env                  # Environment variables for the entire project
 ├── frontend/            # React Native with Expo mobile app
-│   └── README.md       # Frontend documentation
-├── backend/            # FastAPI server
-│   └── README.md       # Backend documentation
-└── README.md           # This file
+│   ├── screens/         # UI screens
+│   ├── services/        # API services
+│   ├── utils/           # Helper functions
+│   └── components/      # Reusable UI components
+├── backend/             # FastAPI server
+│   ├── routes/          # API route handlers
+│   ├── models/          # Data models and schemas
+│   └── logic/           # Business logic
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v16 or newer)
+- Node.js (v16+)
 - Python 3.8+
 - Expo CLI (`npm install -g expo-cli`)
 
 ### Setup Instructions
 
-1. Clone the repository
+1. **Clone the repository**
 
    ```bash
    git clone <repository-url>
    cd aanf-banking-app
    ```
 
-2. **Set up backend**
+2. **Set up environment variables**
+
+   Create or update the `.env` file in the root directory:
+
+   ```
+   # API Configuration
+   API_URL=http://YOUR_IP_ADDRESS:8000
+   EXPO_API_URL=http://YOUR_IP_ADDRESS:8000
+
+   # JWT Configuration
+   JWT_SECRET_KEY=64cb19f732b455e1e70a30ce832d21bd7821db0ff190f9c1a9695d0262b1db5a
+
+   # Demo Credentials
+   DEMO_USERNAME=testuser
+   DEMO_PASSWORD=123456
+   DEMO_OTP=000000
+
+   # Supported Carriers
+   SUPPORTED_CARRIERS=Airtel,Jio,Vi,BSNL,T-Mobile,Verizon,AT&T,Vodafone,Unknown
+
+   # Development & Testing
+   DEV_MODE=true
+   LOG_LEVEL=debug
+   ```
+
+   Replace `YOUR_IP_ADDRESS` with your machine's IP address on the local network.
+
+3. **Set up and start the backend**
 
    ```bash
    cd backend
    pip install -r requirements.txt
-   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   uvicorn main:app --host 0.0.0.0 --port 8000
    ```
 
-3. **Set up frontend**
+4. **Set up and start the frontend**
 
    ```bash
    cd ../frontend
    npm install
+   npx expo start
    ```
 
-4. **Update API URL**
+5. **Run on a device**
+   - Scan the QR code with the Expo Go app
+   - Or run on a simulator/emulator
 
-   - Open `frontend/services/api.js` and update the `BASE_URL` constant
-   - Or create a `.env.local` file in the root with `EXPO_API_URL=http://YOUR_IP:8000`
+## Authentication Flows
 
-5. **Start the frontend**
+### Traditional Flow
 
-   ```bash
-   npm start
-   ```
+1. Login with username/password
+2. OTP verification
+3. JWT token-based transaction approval
 
-6. **Run on physical device**
-   - Scan the QR code with Expo Go app
+### AANF Flow
 
-### Environment Variables
+1. SIM-based authentication using device and carrier info
+2. Key derivation for secure authentication
+3. Cryptographically signed transactions
 
-Create a copy of `.env.example` to `.env` and update with your settings:
+## Important Notes
 
-- `API_URL`: Backend API URL
-- `JWT_SECRET_KEY`: Secret key for JWT tokens
-- `SUPPORTED_CARRIERS`: Comma-separated list of supported carriers
-- `EXPO_API_URL`: URL for the Expo app to connect to backend
+- **Local IP Address**: Use your computer's IP address (not localhost/127.0.0.1) for testing on physical devices
+- **Single Node Modules**: The project is structured with node_modules only in the frontend directory
+- **Environment Configuration**: Update the IP address in the .env file when your network changes
+- **Test Credentials**: Use the demo credentials from the .env file for testing
 
-### Default Test Credentials
+## Troubleshooting
 
-- Username: testuser
-- Password: 123456
-- OTP: 000000
+- **Network Errors**: Make sure your device and development machine are on the same network
+- **Connection Issues**: Check that the IP address in .env is correct
+- **Missing Modules**: Run `npm install` in the frontend directory
+- **Database Errors**: Make sure the SQLite database file is accessible to the backend
 
 ## Technology Stack
 
@@ -96,41 +133,13 @@ Create a copy of `.env.example` to `.env` and update with your settings:
 
 - React Native with Expo
 - React Navigation
-- Axios for API communication
-- Expo Vector Icons
-- AsyncStorage for local storage
+- React Native Paper UI
+- Secure Storage
+- Lottie Animations
 
 ### Backend
 
-- FastAPI (Python)
-- JWT for authentication
-- SQLAlchemy for database
-- Pydantic for data validation
-
-## Advanced Authentication and Network Fingerprinting (AANF)
-
-AANF is a security approach that combines:
-
-**Multi-factor authentication:**
-
-- Something you know (password)
-- Something you have (OTP via device)
-
-**Network fingerprinting:**
-
-- Device identification
-- Network pattern analysis
-- Location-based verification
-
-This combination provides significantly stronger security than traditional authentication methods.
-
-## Troubleshooting
-
-- **Backend Connection**: Ensure you're using your computer's local IP address (not localhost) in the API configuration
-- **CORS Issues**: The backend is configured to accept connections from the Expo development server
-- **Device Testing**: For physical device testing, ensure both your phone and development machine are on the same network
-
-## Additional Documentation
-
-- See `frontend/README.md` for more details on the mobile app
-- See `backend/README.md` for API documentation and server details
+- FastAPI
+- SQLAlchemy
+- JWT Authentication
+- Cryptographic Libraries

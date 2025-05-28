@@ -32,7 +32,7 @@ app.include_router(aanf.router, prefix="/aanf")
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*", "https://ec43-2409-40f4-40cd-c746-78f5-eeaa-4d86-f725.ngrok-free.app"],
+    allow_origins=["*"],  # For prototype, allow all origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -69,12 +69,3 @@ async def startup():
 @app.get("/")
 def read_root():
     return {"status": "online", "message": "AANF Banking API is running"}
-
-@app.middleware("http")
-async def add_security_headers(request, call_next):
-    response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, x-akma-key, x-transaction-sig"
-    return response
