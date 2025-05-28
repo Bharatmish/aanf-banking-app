@@ -1,22 +1,37 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Alert,
   StyleSheet,
   SafeAreaView,
+  Dimensions,
+  ScrollView,
+  Animated,
+  StatusBar,
+  TouchableOpacity,
 } from 'react-native';
 import { Button, Text, useTheme } from 'react-native-paper';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { getToken, removeToken } from '../utils/storage';
+
+const { width, height } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const navigation = useNavigation();
   const { colors } = useTheme();
   const [loggedIn, setLoggedIn] = useState(false);
+  
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const cardAnimations = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0)
+  ]).current;
 
-  // ✅ Check login status every time screen is focused
   useFocusEffect(
     useCallback(() => {
       const checkAuth = async () => {
@@ -25,10 +40,41 @@ export default function HomeScreen() {
         setLoggedIn(!!(t1 || t2));
       };
       checkAuth();
+      
+      // Start animations
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 100,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Stagger card animations
+      Animated.stagger(150, 
+        cardAnimations.map(anim => 
+          Animated.spring(anim, {
+            toValue: 1,
+            tension: 70,
+            friction: 7,
+            useNativeDriver: true,
+          })
+        )
+      ).start();
     }, [])
   );
 
-  // Optional rooted device check
   useEffect(() => {
     const isDeviceRooted = false;
     if (isDeviceRooted) {
@@ -40,7 +86,6 @@ export default function HomeScreen() {
     }
   }, []);
 
-  // ✅ Logout handler
   const handleLogout = async () => {
     await removeToken('akma-key');
     await removeToken('traditional-token');
@@ -49,152 +94,452 @@ export default function HomeScreen() {
   };
 
   return (
-    <View style={[styles.background, { backgroundColor: colors.background }]}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <LinearGradient
+        colors={['#1a237e', '#283593', '#303f9f']}
+        style={styles.background}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
+      
+      {/* Subtle decorative elements */}
+      <View style={styles.decorativeElements}>
+        <Animated.View style={[styles.floatingCircle, styles.circle1]} />
+        <Animated.View style={[styles.floatingCircle, styles.circle2]} />
+        <Animated.View style={[styles.floatingCircle, styles.circle3]} />
+      </View>
+      
       <SafeAreaView style={styles.safe}>
-        <BlurView intensity={60} tint="light" style={styles.card}>
-          <FontAwesome5 name="university" size={28} color={colors.primary} />
-          <Text style={[styles.title, { color: colors.primary }]}>
-            AANF Banking
-          </Text>
-          <Text style={[styles.subtitle, { color: colors.onSurfaceVariant }]}>
-            Secure. Modern. Trusted.
-          </Text>
-
-          {/* ✅ Welcome message if logged in */}
-          {loggedIn && (
-            <Text style={styles.welcome}>👋 Welcome back!</Text>
-          )}
-
-          <View style={styles.section}>
-            <MaterialCommunityIcons name="lock" size={22} color="#6d28d9" />
-            <Text style={[styles.flowTitle, { color: colors.onSurface }]}>
-              Traditional Flow
+        <Animated.ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          style={{
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }]
+          }}
+        >
+          {/* Header */}
+          <Animated.View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <LinearGradient
+                colors={['#448aff', '#2979ff']}
+                style={styles.logoGradient}
+              >
+                <FontAwesome5 name="university" size={24} color="#fff" />
+              </LinearGradient>
+            </View>
+            <Text style={styles.title}>AANF Banking</Text>
+            <Text style={styles.subtitle}>
+              Advanced Authentication & Network Fingerprinting
             </Text>
-            <Text style={[styles.flowDesc, { color: colors.onSurfaceVariant }]}>
-              Login with password authentication
-            </Text>
-            <Button
-              mode="contained"
-              buttonColor="#6d28d9"
-              style={styles.button}
-              onPress={() => navigation.navigate('TraditionalLoginScreen')}
-            >
-              Enter
-            </Button>
+            
+            {loggedIn && (
+              <Animated.View style={styles.welcomeContainer}>
+                <MaterialCommunityIcons name="check-circle" size={16} color="#4ade80" />
+                <Text style={styles.welcome}>Welcome back, Secure User</Text>
+              </Animated.View>
+            )}
+          </Animated.View>
+
+          {/* Authentication Cards */}
+          <View style={styles.cardsContainer}>
+            {/* Traditional Flow Card */}
+            <Animated.View style={[styles.card, {
+              transform: [{ 
+                scale: cardAnimations[0].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.9, 1]
+                })
+              }],
+              opacity: cardAnimations[0]
+            }]}>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => navigation.navigate('TraditionalLoginScreen')}
+                style={styles.cardTouchable}
+              >
+                <LinearGradient
+                  colors={['#5c6bc0', '#3f51b5', '#3949ab']}
+                  style={styles.cardGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={styles.cardContent}>
+                    <View style={styles.cardIconContainer}>
+                      <MaterialCommunityIcons name="lock-outline" size={20} color="#fff" />
+                    </View>
+                    <Text style={styles.cardTitle}>Traditional Auth</Text>
+                    <Text style={styles.cardDescription}>
+                      Username, password and OTP verification
+                    </Text>
+                    <View style={styles.cardFeatures}>
+                      <View style={styles.feature}>
+                        <MaterialCommunityIcons name="shield-account-outline" size={14} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.featureText}>Username & Password</Text>
+                      </View>
+                      <View style={styles.feature}>
+                        <MaterialCommunityIcons name="message-badge-outline" size={14} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.featureText}>OTP Verification</Text>
+                      </View>
+                    </View>
+                    <View style={styles.cardButton}>
+                      <Text style={styles.cardButtonLabel}>Get Started</Text>
+                      <MaterialCommunityIcons name="arrow-right" size={16} color="#fff" />
+                    </View>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+
+            {/* AANF Flow Card */}
+            <Animated.View style={[styles.card, {
+              transform: [{ 
+                scale: cardAnimations[1].interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.9, 1]
+                })
+              }],
+              opacity: cardAnimations[1]
+            }]}>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => navigation.navigate('AANFAuthScreen')}
+                style={styles.cardTouchable}
+              >
+                <LinearGradient
+                  colors={['#00897b', '#00796b', '#00695c']}
+                  style={styles.cardGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={styles.cardContent}>
+                    <View style={[styles.cardIconContainer, styles.aanfIconContainer]}>
+                      <MaterialCommunityIcons name="sim-outline" size={20} color="#fff" />
+                    </View>
+                    <Text style={styles.cardTitle}>AANF Auth</Text>
+                    <Text style={styles.cardDescription}>
+                      SIM-based authentication with cryptographic signatures
+                    </Text>
+                    <View style={styles.cardFeatures}>
+                      <View style={[styles.feature, styles.aanfFeature]}>
+                        <MaterialCommunityIcons name="sim" size={14} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.featureText}>SIM-based Auth</Text>
+                      </View>
+                      <View style={[styles.feature, styles.aanfFeature]}>
+                        <MaterialCommunityIcons name="key-outline" size={14} color="rgba(255,255,255,0.9)" />
+                        <Text style={styles.featureText}>Crypto Signatures</Text>
+                      </View>
+                    </View>
+                    <View style={[styles.cardButton, styles.aanfButton]}>
+                      <Text style={styles.cardButtonLabel}>Get Started</Text>
+                      <MaterialCommunityIcons name="arrow-right" size={16} color="#fff" />
+                    </View>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
 
-          <View style={styles.section}>
-            <MaterialCommunityIcons name="sim" size={22} color="#059669" />
-            <Text style={[styles.flowTitle, { color: colors.onSurface }]}>
-              AANF Flow (SIM Auth)
-            </Text>
-            <Text style={[styles.flowDesc, { color: colors.onSurfaceVariant }]}>
-              Login via SIM + device-based auth
-            </Text>
-            <Button
-              mode="contained"
-              buttonColor="#059669"
-              style={styles.button}
-              onPress={() => navigation.navigate('AANFAuthScreen')}
-            >
-              Enter
-            </Button>
-          </View>
-
-          {/* ✅ History & Logout buttons only if logged in */}
+          {/* Action Buttons */}
           {loggedIn && (
-            <>
+            <Animated.View style={[styles.actionButtons, {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }]}>
               <Button
-                icon="history"
-                mode="outlined"
+                icon={({ size, color }) => (
+                  <MaterialCommunityIcons name="history" size={18} color={color} />
+                )}
+                mode="contained"
+                buttonColor="#ffffff"
+                textColor="#303f9f"
                 style={styles.historyButton}
+                labelStyle={styles.actionButtonLabel}
+                contentStyle={styles.actionButtonContent}
                 onPress={() => navigation.navigate('TransactionHistoryScreen')}
               >
-                View Transaction History
+                Transaction History
               </Button>
 
               <Button
-                mode="text"
-                onPress={handleLogout}
+                icon={({ size, color }) => (
+                  <MaterialCommunityIcons name="logout" size={18} color={color} />
+                )}
+                mode="outlined"
+                textColor="#f44336"
                 style={styles.logoutButton}
-                labelStyle={{ color: '#dc2626' }}
+                labelStyle={styles.logoutButtonLabel}
+                contentStyle={styles.actionButtonContent}
+                onPress={handleLogout}
               >
                 Logout
               </Button>
-            </>
+            </Animated.View>
           )}
-        </BlurView>
+
+          {/* Enhanced Security Badge */}
+          <Animated.View style={styles.securityBadge}>
+            <View style={styles.securityBadgeContent}>
+              <MaterialCommunityIcons name="shield-check-outline" size={14} color="#26a69a" />
+              <Text style={styles.securityText}>
+                End-to-end encrypted
+              </Text>
+            </View>
+          </Animated.View>
+        </Animated.ScrollView>
       </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  background: {
+  container: {
     flex: 1,
+  },
+  background: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  decorativeElements: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: -1,
+  },
+  floatingCircle: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 100,
+  },
+  circle1: {
+    width: 150,
+    height: 150,
+    top: -50,
+    right: -50,
+  },
+  circle2: {
+    width: 100,
+    height: 100,
+    bottom: 150,
+    left: -50,
+  },
+  circle3: {
+    width: 80,
+    height: 80,
+    bottom: 50,
+    right: 10,
   },
   safe: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    paddingTop: 60,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  logoContainer: {
+    marginBottom: 18,
+  },
+  logoGradient: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-  },
-  card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    borderRadius: 20,
-    padding: 20,
-    width: '100%',
-    alignItems: 'center',
     shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    borderColor: 'rgba(255,255,255,0.4)',
-    borderWidth: 1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 10,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 8,
+    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 14,
-    marginBottom: 20,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
+    lineHeight: 18,
+    fontWeight: '400',
+  },
+  welcomeContainer: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
   welcome: {
-    fontSize: 16,
-    marginBottom: 12,
-    color: '#16a34a',
-    fontWeight: '600',
-  },
-  section: {
-    width: '100%',
-    marginTop: 15,
-    marginBottom: 10,
-    alignItems: 'center',
-  },
-  flowTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 5,
-  },
-  flowDesc: {
     fontSize: 13,
-    textAlign: 'center',
-    marginVertical: 4,
+    color: '#fff',
+    fontWeight: '500',
+    marginLeft: 6,
   },
-  button: {
-    marginTop: 8,
-    borderRadius: 30,
-    paddingHorizontal: 20,
-    width: 160,
+  cardsContainer: {
+    gap: 16,
+    marginBottom: 24,
+  },
+  card: {
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  cardTouchable: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  cardGradient: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  cardContent: {
+    padding: 18,
+  },
+  cardIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  aanfIconContainer: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 6,
+    letterSpacing: 0.25,
+  },
+  cardDescription: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.8)',
+    marginBottom: 14,
+    lineHeight: 18,
+  },
+  cardFeatures: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+    flexWrap: 'wrap',
+  },
+  feature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  aanfFeature: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  featureText: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.9)',
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  cardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    gap: 6,
+  },
+  aanfButton: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  cardButtonLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+    letterSpacing: 0.25,
+  },
+  actionButtons: {
+    gap: 12,
+    marginBottom: 20,
   },
   historyButton: {
-    marginTop: 20,
-    borderRadius: 20,
-    borderColor: '#1f2937',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   logoutButton: {
-    marginTop: 12,
+    borderRadius: 12,
+    borderColor: '#f44336',
+    borderWidth: 1.5,
+    backgroundColor: 'transparent',
+  },
+  actionButtonContent: {
+    paddingVertical: 6,
+  },
+  actionButtonLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.25,
+  },
+  logoutButtonLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.25,
+  },
+  securityBadge: {
+    alignSelf: 'center',
+    marginTop: 8,
+  },
+  securityBadgeContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  securityText: {
+    fontSize: 11,
+    color: '#424242',
+    marginLeft: 6,
+    fontWeight: '500',
   },
 });
