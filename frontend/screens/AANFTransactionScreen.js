@@ -1,143 +1,107 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Keyboard } from 'react-native';
-import { Title, Text, TextInput, Button } from 'react-native-paper';
-import { aanfTransaction, BASE_URL } from '../services/api'; // Added BASE_URL import here
-import { getToken, removeToken } from '../utils/storage';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  ScrollView,
+  Keyboard,
+} from 'react-native';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
-import { saveSecureTransaction } from '../utils/secureTransactions';
 import CryptoJS from 'crypto-js';
 
-export default function AANFTransactionScreen() {
+import { aanfTransaction } from '../services/api';
+import { getToken, removeToken } from '../utils/storage';
+import { saveSecureTransaction } from '../utils/secureTransactions';
+
+const AANFTransactionScreen = () => {
+  const [mobile, setMobile] = useState('');
   const [amount, setAmount] = useState('');
+  const [remarks, setRemarks] = useState('');
+  const [mobileError, setMobileError] = useState('');
+  const [amountError, setAmountError] = useState('');
+
   const navigation = useNavigation();
 
   useEffect(() => {
-    const debugToken = async () => {
+    (async () => {
       const key = await getToken('akma-key');
-      console.log('🔐 AKMA KEY from SecureStore:', key);
-    };
-    debugToken();
+      console.log('🔐 AKMA KEY:', key?.substring(0, 8) + '...');
+    })();
   }, []);
 
-const createHmacSignature = (data, key) => {
-  try {
-    // Create canonical form with sorted keys, ensuring amount is a float with .0
-    const amountAsFloat = parseFloat(parseFloat(data.amount).toFixed(1)); // Ensure float with one decimal
-    const canonicalData = JSON.stringify({ amount: amountAsFloat }, null, 0);
-    
-    console.log('Canonical data:', canonicalData);
-    console.log('Using KAF:', key.substring(0, 8) + '...');
-    
-    // Generate HMAC-SHA256 signature
-    const hmacSignature = CryptoJS.HmacSHA256(canonicalData, key).toString(CryptoJS.enc.Hex);
-    
-    console.log('JSON string for signing:', canonicalData);
-    console.log('Signature generated:', hmacSignature);
-    
-    return hmacSignature;
-  } catch (error) {
-    console.error("Signature generation error:", error);
-    throw error;
-  }
-};
+  const validate = () => {
+    let valid = true;
 
-  const handleTransaction = async () => {
-    console.log("\n=========== 💰 AANF TRANSACTION STARTED ===========");
-    
-    Keyboard.dismiss();
-    const akmaKey = await getToken('akma-key');
-    const amountValue = parseFloat(amount);
-    const kaf = await getToken('kaf-transactions');
-    const kafExpiry = await getToken('kaf-expiry');
-    
-    console.log(`🔑 Using AKMA key: ${akmaKey ? (akmaKey.substring(0, 8) + '...') : 'Not found'}`);
-    console.log(`⏱️ KAF expiry: ${kafExpiry ? new Date(parseInt(kafExpiry) * 1000).toLocaleString() : 'Not set'}`);
-
-    // Check if KAF session is expired
-    if (kafExpiry && Date.now() / 1000 > parseInt(kafExpiry)) {
-        console.log("⏰ KAF has expired. Redirecting to authentication...");
-        Toast.show({ type: 'error', text1: 'Session expired', text2: 'Please re-authenticate' });
-        navigation.navigate('AANFAuthScreen');
-        return;
+    if (!mobile.trim()) {
+      setMobileError('Mobile number is required.');
+      valid = false;
+    } else if (!/^\d{10}$/.test(mobile)) {
+      setMobileError('Enter a valid 10-digit mobile number.');
+      valid = false;
+    } else {
+      setMobileError('');
     }
 
-    if (isNaN(amountValue)) {
-        console.log("❌ Invalid amount entered");
-        alert('Please enter a valid amount');
-        return;
+    if (!amount.trim()) {
+      setAmountError('Amount is required.');
+      valid = false;
+    } else if (!/^\d+(\.\d{1,2})?$/.test(amount)) {
+      setAmountError('Enter a valid amount (up to 2 decimals).');
+      valid = false;
+    } else if (parseFloat(amount) <= 0) {
+      setAmountError('Amount must be greater than 0.');
+      valid = false;
+    } else {
+      setAmountError('');
+    }
+
+    return valid;
+  };
+
+  const createHmacSignature = (data, key) => {
+    const canonicalData = JSON.stringify({ amount: parseFloat(parseFloat(data.amount).toFixed(1)) });
+    return CryptoJS.HmacSHA256(canonicalData, key).toString(CryptoJS.enc.Hex);
+  };
+
+  const handleTransaction = async () => {
+    Keyboard.dismiss();
+    if (!validate()) return;
+
+    const akmaKey = await getToken('akma-key');
+    const kaf = await getToken('kaf-transactions');
+    const kafExpiry = await getToken('kaf-expiry');
+    const amountValue = parseFloat(amount);
+
+    if (kafExpiry && Date.now() / 1000 > parseInt(kafExpiry)) {
+      Toast.show({ type: 'error', text1: 'Session expired', text2: 'Please re-authenticate' });
+      navigation.navigate('AANFAuthScreen');
+      return;
     }
 
     try {
-        // Create transaction data
-        const transactionData = { amount: parseFloat(amountValue) };
-        console.log("📋 Transaction data:", transactionData);
-        
-        // Get KAF from secure storage
-        console.log(`🔐 KAF retrieved: ${kaf ? 'Yes' : 'No'} ${kaf ? '(' + kaf.substring(0, 8) + '...)' : ''}`);
-        
-        // Create signature
-        let signature = null;
-        if (kaf) {
-            try {
-                console.log("🔏 Generating transaction signature...");
-                signature = createHmacSignature(transactionData, kaf);
-                console.log(`✅ Signature generated: ${signature.substring(0, 16)}...`);
-            } catch (sigErr) {
-                console.error('❌ Error generating signature:', sigErr);
-            }
-        }
+      const transactionData = { amount: amountValue };
+      let signature = kaf ? createHmacSignature(transactionData, kaf) : null;
 
-        // Log the exact headers and data being sent
-        const headers = { 'x-akma-key': akmaKey };
-        if (signature) {
-            headers['x-transaction-sig'] = signature;
-        }
-        console.log("📤 Sending transaction with headers:", headers);
-        console.log("📤 Transaction data:", transactionData);
-        
-        // Send transaction
-        console.log(`📤 Sending transaction request to: ${BASE_URL}/aanf/transaction`);
-        const response = await aanfTransaction(transactionData, akmaKey, signature);
-        console.log("✅ Transaction successful, response:", response.data);
-        
-        // Save to secure storage
-        await saveSecureTransaction(amountValue, 'AANF');
-        console.log("💾 Transaction saved to secure storage");
-        
-        console.log("=========== 💰 AANF TRANSACTION COMPLETE ===========\n");
-        
-        Toast.show({ type: 'success', text1: 'Transaction successful via AANF' });
-        
-        navigation.navigate('TransactionSuccessScreen', {
-            amount: amountValue,
-            flow: 'AANF',
-        });
+      const response = await aanfTransaction(transactionData, akmaKey, signature);
+      await saveSecureTransaction(amountValue, 'AANF');
+
+      Toast.show({ type: 'success', text1: 'Transaction successful via AANF' });
+
+      navigation.navigate('TransactionSuccessScreen', {
+        amount: amountValue,
+        mobile,
+        remarks,
+        flow: 'AANF',
+      });
     } catch (error) {
-        console.log("\n=========== ❌ AANF TRANSACTION FAILED ===========");
-        console.error('Transaction error:', error);
-        
-        // Detailed error logging
-        if (error.response) {
-            console.log(`❌ Server responded with status: ${error.response.status}`);
-            console.log('❌ Response data:', error.response.data);
-            console.log('❌ Response headers:', error.response.headers);
-        } else if (error.request) {
-            console.log('❌ No response received:', error.request);
-        } else {
-            console.log(`❌ Error setting up request: ${error.message}`);
-        }
-        console.log("=========== ❌ AANF TRANSACTION FAILED ===========\n");
-        
-        // More specific error messages based on error type
-        const errorMsg = error.response?.data?.detail || 
-                        error.message || 
-                        'Transaction failed';
-        Toast.show({ 
-            type: 'error', 
-            text1: 'Transaction Failed', 
-            text2: errorMsg 
-        });
+      console.error('❌ AANF Transaction Error:', error);
+      const errorMsg = error.response?.data?.detail || error.message || 'Transaction failed';
+      Toast.show({ type: 'error', text1: 'Transaction Failed', text2: errorMsg });
     }
   };
 
@@ -145,44 +109,151 @@ const createHmacSignature = (data, key) => {
     await removeToken('akma-key');
     await removeToken('kaf-transactions');
     Toast.show({ type: 'info', text1: 'Logged out' });
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'HomeScreen' }],
-    });
+    navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
   };
 
   return (
-    <View style={styles.container}>
-      <Title style={styles.title}>AANF Secure Transaction</Title>
-      <Text style={styles.subtitle}>
-        Enter the amount to be transferred securely via SIM-based authentication
-      </Text>
+    <LinearGradient
+      colors={['#1B2B99', '#23C784']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradient}
+    >
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="white" />
+        </TouchableOpacity>
 
-      <TextInput
-        label="Amount (₹)"
-        value={amount}
-        onChangeText={setAmount}
-        keyboardType="numeric"
-        mode="outlined"
-        style={styles.input}
-      />
+        <Text style={styles.title}>Tranfer Money</Text>
+        <Text style={styles.subtitle}>Authenticated via AKMA/KAF</Text>
 
-      <Button mode="contained" onPress={handleTransaction} style={styles.button}>
-        Submit Secure Transaction
-      </Button>
+        <View style={styles.inputGroup}>
+          <TextInput
+            style={[styles.input, mobileError && styles.inputError]}
+            placeholder="Recipient Mobile Number"
+            placeholderTextColor="#99AABB"
+            keyboardType="numeric"
+            maxLength={10}
+            value={mobile}
+            onChangeText={setMobile}
+          />
+          {mobileError && <Text style={styles.errorText}>{mobileError}</Text>}
 
-      <Button mode="outlined" onPress={handleLogout} style={styles.logoutButton}>
-        Logout
-      </Button>
-    </View>
+          <TextInput
+            style={[styles.input, amountError && styles.inputError]}
+            placeholder="Amount (₹)"
+            placeholderTextColor="#99AABB"
+            keyboardType="numeric"
+            value={amount}
+            onChangeText={setAmount}
+          />
+          {amountError && <Text style={styles.errorText}>{amountError}</Text>}
+
+          <TextInput
+            style={styles.input}
+            placeholder="Remarks (optional)"
+            placeholderTextColor="#99AABB"
+            value={remarks}
+            onChangeText={setRemarks}
+          />
+        </View>
+
+        <TouchableOpacity onPress={handleTransaction} activeOpacity={0.9} style={styles.buttonWrapper}>
+          <LinearGradient
+            colors={['#3DC68D', '#1F9F72']}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.sendButton}
+          >
+            <Text style={styles.sendText}>Send Money</Text>
+            <MaterialIcons name="send" size={20} color="#fff" />
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+          <Text style={styles.logoutText}></Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </LinearGradient>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#047857', textAlign: 'center', marginBottom: 16 },
-  subtitle: { fontSize: 16, textAlign: 'center', color: '#6b7280', marginBottom: 24 },
-  input: { marginBottom: 20 },
-  button: { marginBottom: 20 },
-  logoutButton: { borderColor: '#047857' },
+  gradient: {
+    flex: 1,
+  },
+  container: {
+    padding: 24,
+    paddingTop: 50,
+  },
+  backButton: {
+    backgroundColor: 'rgba(0,0,0,0.15)',
+    borderRadius: 30,
+    padding: 10,
+    alignSelf: 'flex-start',
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: '#D4E1FF',
+    textAlign: 'center',
+    marginBottom: 30,
+  },
+  inputGroup: {
+    marginBottom: 40,
+  },
+  input: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 14,
+    padding: 14,
+    fontSize: 16,
+    color: '#fff',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  inputError: {
+    borderColor: '#FF6B6B',
+  },
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 13,
+    marginBottom: 10,
+    marginLeft: 4,
+  },
+  buttonWrapper: {
+    borderRadius: 50,
+    overflow: 'hidden',
+    marginBottom: 20,
+  },
+  sendButton: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  sendText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+    marginRight: 10,
+  },
+  logoutButton: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  logoutText: {
+    color: '#C8E2D5',
+    fontSize: 16,
+    textDecorationLine: 'underline',
+  },
 });
+
+export default AANFTransactionScreen;

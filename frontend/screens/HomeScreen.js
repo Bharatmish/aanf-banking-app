@@ -5,7 +5,6 @@ import {
   StyleSheet,
   SafeAreaView,
   Dimensions,
-  ScrollView,
   Animated,
   StatusBar,
   TouchableOpacity,
@@ -22,8 +21,7 @@ export default function HomeScreen() {
   const navigation = useNavigation();
   const { colors } = useTheme();
   const [loggedIn, setLoggedIn] = useState(false);
-  
-  // Animation refs
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
@@ -40,8 +38,7 @@ export default function HomeScreen() {
         setLoggedIn(!!(t1 || t2));
       };
       checkAuth();
-      
-      // Start animations
+
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -61,9 +58,8 @@ export default function HomeScreen() {
         }),
       ]).start();
 
-      // Stagger card animations
-      Animated.stagger(150, 
-        cardAnimations.map(anim => 
+      Animated.stagger(150,
+        cardAnimations.map(anim =>
           Animated.spring(anim, {
             toValue: 1,
             tension: 70,
@@ -97,21 +93,20 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <LinearGradient
-        colors={['#1a237e', '#283593', '#303f9f']}
+        colors={['#1B2B99', '#23C784']}
         style={styles.background}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       />
-      
-      {/* Subtle decorative elements */}
+
       <View style={styles.decorativeElements}>
         <Animated.View style={[styles.floatingCircle, styles.circle1]} />
         <Animated.View style={[styles.floatingCircle, styles.circle2]} />
         <Animated.View style={[styles.floatingCircle, styles.circle3]} />
       </View>
-      
+
       <SafeAreaView style={styles.safe}>
-        <Animated.ScrollView 
+        <Animated.ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           style={{
@@ -119,7 +114,6 @@ export default function HomeScreen() {
             transform: [{ translateY: slideAnim }]
           }}
         >
-          {/* Header */}
           <Animated.View style={styles.header}>
             <View style={styles.logoContainer}>
               <LinearGradient
@@ -133,7 +127,7 @@ export default function HomeScreen() {
             <Text style={styles.subtitle}>
               Advanced Authentication & Network Fingerprinting
             </Text>
-            
+
             {loggedIn && (
               <Animated.View style={styles.welcomeContainer}>
                 <MaterialCommunityIcons name="check-circle" size={16} color="#4ade80" />
@@ -142,11 +136,9 @@ export default function HomeScreen() {
             )}
           </Animated.View>
 
-          {/* Authentication Cards */}
           <View style={styles.cardsContainer}>
-            {/* Traditional Flow Card */}
             <Animated.View style={[styles.card, {
-              transform: [{ 
+              transform: [{
                 scale: cardAnimations[0].interpolate({
                   inputRange: [0, 1],
                   outputRange: [0.9, 1]
@@ -192,9 +184,8 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </Animated.View>
 
-            {/* AANF Flow Card */}
             <Animated.View style={[styles.card, {
-              transform: [{ 
+              transform: [{
                 scale: cardAnimations[1].interpolate({
                   inputRange: [0, 1],
                   outputRange: [0.9, 1]
@@ -241,7 +232,6 @@ export default function HomeScreen() {
             </Animated.View>
           </View>
 
-          {/* Action Buttons */}
           {loggedIn && (
             <Animated.View style={[styles.actionButtons, {
               opacity: fadeAnim,
@@ -278,10 +268,9 @@ export default function HomeScreen() {
             </Animated.View>
           )}
 
-          {/* Enhanced Security Badge */}
           <Animated.View style={styles.securityBadge}>
             <View style={styles.securityBadgeContent}>
-              <MaterialCommunityIcons name="shield-check-outline" size={14} color="#26a69a" />
+              <MaterialCommunityIcons name="shield-check-outline" size={14} color="#fff" />
               <Text style={styles.securityText}>
                 End-to-end encrypted
               </Text>
@@ -298,18 +287,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   background: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
   },
   decorativeElements: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
     zIndex: -1,
   },
   floatingCircle: {
@@ -357,10 +338,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
     elevation: 4,
   },
   title: {
@@ -368,178 +345,118 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
     marginBottom: 8,
-    letterSpacing: 0.5,
   },
   subtitle: {
     fontSize: 13,
     color: 'rgba(255,255,255,0.8)',
     textAlign: 'center',
-    lineHeight: 18,
-    fontWeight: '400',
   },
   welcomeContainer: {
     marginTop: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
   },
   welcome: {
+    color: '#4ade80',
     fontSize: 13,
-    color: '#fff',
-    fontWeight: '500',
     marginLeft: 6,
   },
   cardsContainer: {
-    gap: 16,
-    marginBottom: 24,
+    gap: 20,
   },
   card: {
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 4,
+    borderRadius: 20,
+    overflow: 'hidden',
   },
   cardTouchable: {
-    borderRadius: 16,
-    overflow: 'hidden',
+    borderRadius: 20,
   },
   cardGradient: {
-    borderRadius: 16,
-    overflow: 'hidden',
+    padding: 20,
   },
   cardContent: {
-    padding: 18,
+    gap: 10,
   },
   cardIconContainer: {
-    width: 36,
-    height: 36,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    padding: 10,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  aanfIconContainer: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderColor: 'rgba(255,255,255,0.2)',
+    alignSelf: 'flex-start',
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#fff',
-    marginBottom: 6,
-    letterSpacing: 0.25,
   },
   cardDescription: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
-    marginBottom: 14,
-    lineHeight: 18,
+    color: 'rgba(255,255,255,0.9)',
   },
   cardFeatures: {
-    flexDirection: 'row',
     gap: 8,
-    marginBottom: 16,
-    flexWrap: 'wrap',
   },
   feature: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  aanfFeature: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  featureText: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.9)',
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  cardButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
     gap: 6,
   },
-  aanfButton: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderColor: 'rgba(255,255,255,0.2)',
+  featureText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  cardButton: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   cardButtonLabel: {
-    fontSize: 13,
-    fontWeight: '600',
     color: '#fff',
-    letterSpacing: 0.25,
+    fontWeight: '600',
+  },
+  aanfIconContainer: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  aanfFeature: {
+    paddingLeft: 2,
+  },
+  aanfButton: {
+    marginTop: 10,
   },
   actionButtons: {
-    gap: 12,
-    marginBottom: 20,
+    marginTop: 30,
+    gap: 10,
   },
   historyButton: {
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 10,
   },
-  logoutButton: {
-    borderRadius: 12,
-    borderColor: '#f44336',
-    borderWidth: 1.5,
-    backgroundColor: 'transparent',
+  actionButtonLabel: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   actionButtonContent: {
     paddingVertical: 6,
   },
-  actionButtonLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.25,
+  logoutButton: {
+    borderColor: '#f44336',
+    borderWidth: 1,
+    borderRadius: 10,
   },
   logoutButtonLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
-    letterSpacing: 0.25,
   },
   securityBadge: {
-    alignSelf: 'center',
-    marginTop: 8,
+    marginTop: 40,
+    alignItems: 'center',
   },
   securityBadgeContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    gap: 6,
   },
   securityText: {
-    fontSize: 11,
-    color: '#424242',
-    marginLeft: 6,
-    fontWeight: '500',
+    color: '#fff',
+    fontSize: 12,
   },
 });

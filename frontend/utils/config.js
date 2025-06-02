@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 export const APP_CONFIG = {
   // API configuration
   api: {
-    baseUrl: Constants.expoConfig?.extra?.apiUrl || 'http://localhost:8000',
+    baseUrl: Constants.expoConfig?.extra?.apiUrl || 'https://localhost:8000',
     timeout: 10000, // 10 seconds
   },
   

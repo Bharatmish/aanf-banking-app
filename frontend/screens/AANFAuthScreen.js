@@ -149,7 +149,7 @@ export default function AANFAuthScreen() {
         
         // Delay navigation slightly to show the completion state
         setTimeout(() => {
-          navigation.navigate('AANFTransactionScreen');
+          navigation.navigate('DashboardScreen');
         }, 800);
       } catch (sessionErr) {
         console.error('Session creation failed:', sessionErr);

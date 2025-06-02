@@ -1,2 +1,4 @@
 # Simple in-memory session store
-sessions = {}
+sessions = {
+ 
+}

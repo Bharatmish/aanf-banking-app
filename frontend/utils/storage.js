@@ -31,6 +31,7 @@ export const removeToken = async (key) => {
 // --------------------------------------
 // ✅ Transaction History Handling
 // --------------------------------------
+// Save a new transaction entry to secure storage
 export const saveTransactionHistory = async (entry) => {
   try {
     const existing = await SecureStore.getItemAsync('transaction-history');
@@ -42,6 +43,7 @@ export const saveTransactionHistory = async (entry) => {
   }
 };
 
+// Get all saved transaction history entries
 export const getTransactionHistory = async () => {
   try {
     const data = await SecureStore.getItemAsync('transaction-history');
@@ -52,10 +54,33 @@ export const getTransactionHistory = async () => {
   }
 };
 
+// Clear all transaction history
 export const clearTransactionHistory = async () => {
   try {
     await SecureStore.deleteItemAsync('transaction-history');
   } catch (e) {
     console.error('❌ Failed to clear transaction history:', e);
+  }
+};
+
+// --------------------------------------
+// ✅ Save a single transaction easily
+// --------------------------------------
+export const saveTransaction = async (amount, method) => {
+  try {
+    const existing = await SecureStore.getItemAsync('transaction-history');
+    const transactions = existing ? JSON.parse(existing) : [];
+
+    const newTransaction = {
+      amount,
+      method,
+      timestamp: new Date().toISOString(),
+    };
+
+    transactions.push(newTransaction);
+
+    await SecureStore.setItemAsync('transaction-history', JSON.stringify(transactions));
+  } catch (err) {
+    console.error('❌ Failed to save transaction', err);
   }
 };

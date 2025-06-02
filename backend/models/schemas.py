@@ -13,3 +13,6 @@ class TransactionRequest(BaseModel):
 
 class SessionRequest(BaseModel):
     function_id: Optional[str] = "transactions"
+
+class PinRequest(BaseModel):
+    pin: str    

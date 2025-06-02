@@ -2,7 +2,7 @@ import axios from 'axios';
 import Constants from 'expo-constants';
 
 // Get API URL from environment variables via Expo config
-export const BASE_URL = Constants.expoConfig?.extra?.apiUrl;
+export const BASE_URL =  Constants.expoConfig?.extra?.apiUrl;
 
 // API endpoints for traditional authentication flow
 export const login = (data) => axios.post(`${BASE_URL}/traditional/login`, data);

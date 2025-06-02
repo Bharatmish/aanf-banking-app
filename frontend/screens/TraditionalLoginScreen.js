@@ -1,19 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  Dimensions, 
-  KeyboardAvoidingView, 
+import {
+  View,
+  StyleSheet,
+  Dimensions,
+  KeyboardAvoidingView,
   Platform,
   StatusBar,
   Animated,
-  TouchableOpacity
+  TouchableOpacity,
+  Alert,
+  Text as RNText,
 } from 'react-native';
-import { Button, TextInput, Text, Title } from 'react-native-paper';
+import { Button, TextInput, Text } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { login } from '../services/api';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as LocalAuthentication from 'expo-local-authentication';
 
 const { width, height } = Dimensions.get('window');
 
@@ -22,16 +25,19 @@ export default function TraditionalLoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [biometricSupported, setBiometricSupported] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+
   const navigation = useNavigation();
 
-  // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const inputAnim1 = useRef(new Animated.Value(30)).current;
   const inputAnim2 = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    // Start entrance animations
+    checkBiometricSupport();
+
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -45,7 +51,6 @@ export default function TraditionalLoginScreen() {
       }),
     ]).start();
 
-    // Staggered inputs animation
     Animated.stagger(100, [
       Animated.timing(inputAnim1, {
         toValue: 0,
@@ -56,9 +61,40 @@ export default function TraditionalLoginScreen() {
         toValue: 0,
         duration: 500,
         useNativeDriver: true,
-      })
+      }),
     ]).start();
   }, []);
+
+  const checkBiometricSupport = async () => {
+    try {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      setBiometricSupported(compatible);
+      setBiometricAvailable(enrolled);
+    } catch (error) {
+      console.log('Biometric check error:', error);
+      setBiometricSupported(false);
+      setBiometricAvailable(false);
+    }
+  };
+
+  const handleBiometricAuth = async () => {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Authenticate with Fingerprint',
+        fallbackLabel: 'Use Passcode',
+        disableDeviceFallback: false,
+      });
+
+      if (result.success) {
+        navigation.navigate('TraditionalDashboardScreen');
+      } else {
+        Alert.alert('Authentication failed', 'Fingerprint authentication was not successful.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Biometric authentication is not available.');
+    }
+  };
 
   const handleLogin = async () => {
     if (!username || !password) {
@@ -80,30 +116,37 @@ export default function TraditionalLoginScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
       <LinearGradient
-        colors={['#303f9f', '#3949ab', '#5c6bc0']}
+        colors={['#1B2B99', '#23C784']}
         style={styles.background}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       />
 
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <Animated.View style={[styles.content, {
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }]
-        }]}>
-          {/* Header */}
+        <Animated.View
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          
           <View style={styles.header}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-            >
-              <MaterialCommunityIcons name="arrow-left" size={20} color="rgba(255,255,255,0.9)" />
+            <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+              <MaterialCommunityIcons
+                name="arrow-left"
+                size={20}
+                color="rgba(255,255,255,0.9)"
+              />
             </TouchableOpacity>
-            
+
             <View style={styles.iconContainer}>
               <LinearGradient
                 colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.1)']}
@@ -112,63 +155,72 @@ export default function TraditionalLoginScreen() {
                 <MaterialCommunityIcons name="lock-outline" size={22} color="#fff" />
               </LinearGradient>
             </View>
+
             <Text style={styles.title}>Login</Text>
             <Text style={styles.subtitle}>
               Enter your credentials to access your account
             </Text>
           </View>
 
-          {/* Form */}
+          
           <View style={styles.form}>
-            <Animated.View style={{
-              transform: [{ translateY: inputAnim1 }],
-              opacity: fadeAnim
-            }}>
+            <Animated.View
+              style={{
+                transform: [{ translateY: inputAnim1 }],
+                opacity: fadeAnim,
+              }}
+            >
+              <RNText style={styles.staticLabel}>Username</RNText>
               <TextInput
-                label="Username"
                 value={username}
                 onChangeText={setUsername}
                 mode="outlined"
                 style={styles.input}
+                textColor='#fff'
                 theme={{
                   colors: {
                     primary: '#fff',
                     outline: 'rgba(255,255,255,0.5)',
                     onSurfaceVariant: 'rgba(255,255,255,0.8)',
-                  }
+                    text: '#fff',
+                  },
                 }}
                 outlineColor="rgba(255,255,255,0.3)"
                 activeOutlineColor="#fff"
-                textColor="#fff"
+                placeholder=""
                 left={<TextInput.Icon icon="account" iconColor="rgba(255,255,255,0.8)" />}
               />
             </Animated.View>
 
-            <Animated.View style={{
-              transform: [{ translateY: inputAnim2 }],
-              opacity: fadeAnim
-            }}>
+            <Animated.View
+              style={{
+                transform: [{ translateY: inputAnim2 }],
+                opacity: fadeAnim,
+              }}
+            >
+              <RNText style={styles.staticLabel}>Password</RNText>
               <TextInput
-                label="Password"
                 value={password}
                 onChangeText={setPassword}
                 mode="outlined"
                 secureTextEntry={!showPassword}
                 style={styles.input}
+                textColor='#fff'
                 theme={{
                   colors: {
                     primary: '#fff',
-                    outline: 'rgba(255,255,255,0.5)',
+                    outline: 'rgba(244, 243, 243, 0.5)',
                     onSurfaceVariant: 'rgba(255,255,255,0.8)',
-                  }
+                    text: '#fff',
+                  },
                 }}
                 outlineColor="rgba(255,255,255,0.3)"
                 activeOutlineColor="#fff"
-                textColor="#fff"
+                placeholder=""
                 left={<TextInput.Icon icon="lock" iconColor="rgba(255,255,255,0.8)" />}
                 right={
-                  <TextInput.Icon 
-                    icon={showPassword ? "eye-off" : "eye"} 
+                  <TextInput.Icon
+                    icon={showPassword ? 'eye-off' : 'eye'}
                     iconColor="rgba(255,255,255,0.8)"
                     onPress={() => setShowPassword(!showPassword)}
                   />
@@ -176,19 +228,34 @@ export default function TraditionalLoginScreen() {
               />
             </Animated.View>
 
-            <Button 
-              mode="contained" 
+            <Button
+              mode="contained"
               onPress={handleLogin}
               loading={loading}
               disabled={loading}
               buttonColor="#ffffff"
-              textColor="#303f9f"
+              textColor="#1e88e5"
               style={styles.loginButton}
               labelStyle={styles.buttonLabel}
               contentStyle={styles.buttonContent}
             >
               {loading ? 'Signing In...' : 'Sign In'}
             </Button>
+
+            
+            {biometricSupported && biometricAvailable && (
+              <Button
+                mode="outlined"
+                onPress={handleBiometricAuth}
+                textColor="#fff"
+                style={[styles.switchButton, { marginTop: 12 }]}
+                labelStyle={styles.switchButtonLabel}
+                contentStyle={styles.buttonContent}
+                icon="fingerprint"
+              >
+                Sign In with Fingerprint
+              </Button>
+            )}
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
@@ -208,10 +275,14 @@ export default function TraditionalLoginScreen() {
             </Button>
           </View>
 
-          {/* Footer */}
+          
           <View style={styles.footer}>
             <View style={styles.securityInfo}>
-              <MaterialCommunityIcons name="shield-check-outline" size={14} color="rgba(255,255,255,0.9)" />
+              <MaterialCommunityIcons
+                name="shield-check-outline"
+                size={14}
+                color="rgba(255,255,255,0.9)"
+              />
               <Text style={styles.securityText}>
                 Your data is protected with bank-grade security
               </Text>
@@ -228,11 +299,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   background: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
   },
   keyboardView: {
     flex: 1,
@@ -250,110 +317,93 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
-  },
-  header: {
     alignItems: 'center',
-    marginBottom: 32,
-    position: 'relative',
+    zIndex: 10,
   },
   iconContainer: {
-    marginBottom: 20,
+    alignSelf: 'center',
+    marginBottom: 8,
+    borderRadius: 24,
+    overflow: 'hidden',
   },
   iconGradient: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    padding: 12,
+    borderRadius: 24,
   },
   title: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 8,
-    letterSpacing: 0.5,
+    textAlign: 'center',
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 13,
     color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 18,
+    marginBottom: 40,
   },
   form: {
-    gap: 16,
+    flex: 1,
   },
-  input: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 12,
-    fontSize: 14,
-    height: 54,
-  },
-  loginButton: {
-    borderRadius: 12,
-    marginTop: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  buttonContent: {
-    paddingVertical: 6,
-  },
-  buttonLabel: {
+  staticLabel: {
+    color: 'rgba(255,255,255,0.8)',
     fontSize: 14,
     fontWeight: '600',
-    letterSpacing: 0.25,
+    marginBottom: 6,
+    marginLeft: 6,
+  },
+  input: {
+    backgroundColor: 'transparent',
+    marginBottom: 20,
+  },
+  loginButton: {
+    marginTop: 8,
+    borderRadius: 8,
+    elevation: 3,
+  },
+  buttonLabel: {
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  buttonContent: {
+    height: 48,
+  },
+  switchButton: {
+    borderColor: 'rgba(255,255,255,0.7)',
+    borderRadius: 8,
   },
   switchButtonLabel: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 16,
+    marginVertical: 24,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.4)',
   },
   dividerText: {
-    color: 'rgba(255,255,255,0.7)',
-    paddingHorizontal: 16,
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  switchButton: {
-    borderRadius: 12,
-    borderColor: 'rgba(255,255,255,0.3)',
-    borderWidth: 1.5,
-    backgroundColor: 'transparent',
+    marginHorizontal: 12,
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '600',
   },
   footer: {
-    marginTop: 'auto',
     alignItems: 'center',
+    marginTop: 20,
   },
   securityInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
   },
   securityText: {
-    fontSize: 12,
     color: 'rgba(255,255,255,0.8)',
-    marginLeft: 8,
-    fontWeight: '500',
+    fontSize: 12,
+    marginLeft: 6,
   },
 });

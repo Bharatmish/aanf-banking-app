@@ -54,6 +54,7 @@ backend/
    ```
 
 3. **Run the server**:
+
    ```bash
    uvicorn main:app --host 0.0.0.0 --port 8000 --reload
    ```
@@ -73,6 +74,7 @@ backend/
   - Response: `{"token": "jwt-token"}`
 
 - `POST /traditional/transaction`: Execute transaction with JWT authentication
+
   - Headers: `Authorization: Bearer <token>`
   - Request: `{"amount": float}`
   - Response: `{"message": "Transaction successful..."}`
@@ -97,6 +99,7 @@ backend/
   - Response: `{"message": "Transaction successful...", "signature": "string"}`
 
 - `POST /aanf/logout`: Invalidate AKMA key
+
   - Headers: `x-akma-key: <key>`
   - Response: `{"message": "Session ended"}`
 
