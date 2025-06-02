@@ -2,61 +2,56 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import { encryptTransaction as encryptWithAANF, verifyTransaction as verifyWithAANF } from './sim';
-import { log } from './config';
 import { getToken } from './storage';
 
-// Save transaction with encryption
+// Save a secure transaction (Traditional or AANF)
 export const saveSecureTransaction = async (amount, method) => {
   console.log(`\n💾 [SECURE TX] Saving ${method} transaction for ₹${amount}`);
+
   try {
-    // Create transaction object
     const transaction = {
       amount,
       method,
       timestamp: new Date().toISOString(),
       id: Date.now().toString(36) + Math.random().toString(36).substring(2, 7)
     };
-    
+
     console.log(`📝 [SECURE TX] Creating transaction with ID: ${transaction.id}`);
-    
-    // Encrypt transaction data based on method
-    console.log(`🔒 [SECURE TX] Encrypting transaction data using ${method} method...`);
-    
+
     let encryptedData;
     if (method === 'AANF') {
-      // Use AANF-specific encryption with KAF
       try {
         encryptedData = await encryptWithAANF(transaction);
       } catch (error) {
-        console.log(`⚠️ [SECURE TX] AANF encryption failed, falling back to simple encryption: ${error.message}`);
+        console.warn(`⚠️ [SECURE TX] AANF encryption failed, using fallback: ${error.message}`);
         encryptedData = await simpleEncryptTransaction(transaction);
       }
     } else {
-      // Use simple encryption for Traditional flow
       encryptedData = await simpleEncryptTransaction(transaction);
     }
-    
-    // Get existing encrypted transactions
-    console.log(`🔍 [SECURE TX] Retrieving existing transactions...`);
+
+    // Retrieve existing transactions from AsyncStorage
     const existingData = await AsyncStorage.getItem('secure-transactions');
     const transactions = existingData ? JSON.parse(existingData) : [];
-    console.log(`📊 [SECURE TX] Found ${transactions.length} existing transactions`);
-    
-    // Add new encrypted transaction
+
     transactions.push(encryptedData);
-    
-    // Store updated list
     await AsyncStorage.setItem('secure-transactions', JSON.stringify(transactions));
-    console.log(`✅ [SECURE TX] Transaction saved successfully`);
-    
-    // Store index of transaction IDs in SecureStore for faster lookups
-    console.log(`📑 [SECURE TX] Updating transaction index...`);
-    const idIndex = await SecureStore.getItemAsync('transaction-ids') || '{}';
-    const ids = JSON.parse(idIndex);
+
+    console.log(`✅ [SECURE TX] Transaction saved to AsyncStorage`);
+
+    // Save a minimal ID index (only if size is small)
+    const idIndexRaw = await SecureStore.getItemAsync('transaction-ids');
+    const ids = idIndexRaw ? JSON.parse(idIndexRaw) : {};
     ids[transaction.id] = transactions.length - 1;
-    await SecureStore.setItemAsync('transaction-ids', JSON.stringify(ids));
-    console.log(`✅ [SECURE TX] Transaction index updated`);
-    
+
+    const idIndexStr = JSON.stringify(ids);
+    if (idIndexStr.length < 2000) {
+      await SecureStore.setItemAsync('transaction-ids', idIndexStr);
+      console.log(`✅ [SECURE TX] ID index saved to SecureStore`);
+    } else {
+      console.warn(`⚠️ [SECURE TX] Skipped storing transaction IDs in SecureStore (size exceeds 2KB)`);
+    }
+
     return transaction;
   } catch (err) {
     console.error(`❌ [SECURE TX] Failed to save transaction: ${err.message}`);
@@ -64,24 +59,20 @@ export const saveSecureTransaction = async (amount, method) => {
   }
 };
 
-// Simple transaction encryption for Traditional flow
+// Simple HMAC-based encryption for Traditional flow
 const simpleEncryptTransaction = async (data) => {
-  console.log(`🔐 [SECURE TX] Using simple encryption for transaction`);
-  
+  console.log(`🔐 [SECURE TX] Encrypting using simple HMAC method`);
+
   try {
-    // Get JWT token for Traditional flow or use a default secret
     const jwtToken = await getToken('traditional-token') || 'default-banking-app-secret';
     const tokenPart = jwtToken.split('.')[1] || jwtToken.substring(0, 20);
-    
-    // Convert data to string
+
     const dataString = JSON.stringify(data);
-    
-    // Create a simple HMAC for verification
     const hmac = await Crypto.digestStringAsync(
       Crypto.CryptoDigestAlgorithm.SHA256,
       `${tokenPart}:${dataString}`
     );
-    
+
     return {
       data: dataString,
       hmac,
@@ -90,48 +81,42 @@ const simpleEncryptTransaction = async (data) => {
     };
   } catch (error) {
     console.error(`❌ [SECURE TX] Simple encryption error: ${error.message}`);
-    
-    // Fallback to unencrypted but still with timestamp
     return {
       data: JSON.stringify(data),
-      hmac: 'none', // Indicate no verification is possible
+      hmac: 'none',
       timestamp: Date.now(),
       method: data.method
     };
   }
 };
 
-// Get all transactions with verification
+// Retrieve and verify all stored transactions
 export const getSecureTransactions = async () => {
   try {
     const encryptedData = await AsyncStorage.getItem('secure-transactions');
     if (!encryptedData) return [];
-    
+
     const encryptedTransactions = JSON.parse(encryptedData);
-    
-    // Decrypt and verify each transaction
+
     const transactions = await Promise.all(
       encryptedTransactions.map(async (encrypted) => {
         try {
-          // Determine which verification method to use
           if (encrypted.method === 'AANF') {
             try {
               return await verifyWithAANF(encrypted);
             } catch (error) {
-              console.warn('Failed AANF verification, trying simple verify', error);
+              console.warn('⚠️ AANF verification failed, falling back:', error.message);
               return await simpleVerifyTransaction(encrypted);
             }
           } else {
             return await simpleVerifyTransaction(encrypted);
           }
         } catch (e) {
-          console.warn('Skipping corrupted transaction data', e);
-          
-          // Try to recover some data even if verification fails
+          console.warn('⚠️ Skipping corrupted transaction', e);
           try {
             const parsedData = JSON.parse(encrypted.data);
-            parsedData.verified = false; // Mark as unverified
-            parsedData.warning = "Integrity check failed";
+            parsedData.verified = false;
+            parsedData.warning = 'Integrity check failed';
             return parsedData;
           } catch {
             return null;
@@ -139,63 +124,53 @@ export const getSecureTransactions = async () => {
         }
       })
     );
-    
-    // Filter out any failed verifications
-    return transactions.filter(t => t !== null);
+
+    return transactions.filter(Boolean);
   } catch (err) {
-    console.error('❌ Failed to retrieve secure transactions', err);
+    console.error('❌ [SECURE TX] Failed to retrieve transactions:', err.message);
     return [];
   }
 };
 
-// Simple transaction verification for Traditional flow
+// Verify Traditional HMAC-based transaction
 const simpleVerifyTransaction = async (encryptedData) => {
   try {
     const { data, hmac, method } = encryptedData;
-    
-    // If HMAC is 'none', we can't verify
+
     if (hmac === 'none') {
-      const parsedData = JSON.parse(data);
-      parsedData.verified = false;
-      return parsedData;
+      const parsed = JSON.parse(data);
+      parsed.verified = false;
+      parsed.warning = 'No HMAC - cannot verify';
+      return parsed;
     }
-    
-    // Get JWT token for Traditional flow or use default
+
     const jwtToken = await getToken('traditional-token') || 'default-banking-app-secret';
     const tokenPart = jwtToken.split('.')[1] || jwtToken.substring(0, 20);
-    
-    // Calculate expected HMAC
-    const calculatedHmac = await Crypto.digestStringAsync(
+
+    const expectedHmac = await Crypto.digestStringAsync(
       Crypto.CryptoDigestAlgorithm.SHA256,
       `${tokenPart}:${data}`
     );
-    
-    // Check integrity
-    if (calculatedHmac !== hmac) {
-      const parsedData = JSON.parse(data);
-      parsedData.verified = false;
-      parsedData.warning = "Signature verification failed";
-      return parsedData;
-    }
-    
-    // All good
-    const parsedData = JSON.parse(data);
-    parsedData.verified = true;
-    return parsedData;
+
+    const parsed = JSON.parse(data);
+    parsed.verified = expectedHmac === hmac;
+    if (!parsed.verified) parsed.warning = 'Signature mismatch';
+    return parsed;
   } catch (error) {
-    console.error('Simple verification error:', error);
+    console.error('❌ [SECURE TX] Verification error:', error.message);
     throw error;
   }
 };
 
-// Clear all transactions
+// Clear all stored transactions and index
 export const clearSecureTransactions = async () => {
   try {
     await AsyncStorage.removeItem('secure-transactions');
     await SecureStore.deleteItemAsync('transaction-ids');
+    console.log('🧹 [SECURE TX] Cleared all stored transactions');
     return true;
   } catch (err) {
-    console.error('❌ Failed to clear secure transactions', err);
+    console.error('❌ [SECURE TX] Clear failed:', err.message);
     return false;
   }
 };

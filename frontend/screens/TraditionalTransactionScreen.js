@@ -1,131 +1,244 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Keyboard } from 'react-native';
-import { Text, Title, TextInput, Button } from 'react-native-paper';
-import { traditionalTransaction } from '../services/api';
-import { getToken, removeToken } from '../utils/storage';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
+  Animated,
+  TouchableOpacity,
+  Keyboard,
+} from 'react-native';
+import { TextInput, Text, Button } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
-import { saveSecureTransaction } from '../utils/secureTransactions'; // Fixed import
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+
+import { saveTransaction } from '../utils/storage'; // your storage util
 
 export default function TraditionalTransactionScreen() {
   const [amount, setAmount] = useState('');
+  const [mobile, setMobile] = useState('');
   const navigation = useNavigation();
 
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
   useEffect(() => {
-    const debugToken = async () => {
-      const token = await getToken('traditional-token');
-      console.log('🔐 Traditional JWT token from SecureStore:', token);
-    };
-    debugToken();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
-  const handleTransaction = async () => {
-    console.log("\n=========== 💰 TRADITIONAL TRANSACTION STARTED ===========");
-    
+  const handleSubmit = async () => {
     Keyboard.dismiss();
-    const token = await getToken('traditional-token');
-    const amountValue = parseFloat(amount);
 
-    if (!token) {
-      console.log("❌ No authentication token found");
-      Toast.show({ 
-        type: 'error', 
-        text1: 'Authentication Required', 
-        text2: 'Please login again' 
+    const amountValue = parseFloat(amount);
+    const mobileRegex = /^[6-9]\d{9}$/;
+
+    if (!mobileRegex.test(mobile)) {
+      Toast.show({
+        type: 'error',
+        text1: 'Invalid Mobile Number',
+        text2: 'Please enter a valid 10-digit mobile number',
       });
-      navigation.navigate('TraditionalLoginScreen');
       return;
     }
 
-    if (isNaN(amountValue)) {
-      console.log("❌ Invalid amount entered");
-      alert('Please enter a valid amount');
+    if (isNaN(amountValue) || amountValue <= 0) {
+      Toast.show({
+        type: 'error',
+        text1: 'Invalid Amount',
+        text2: 'Please enter a valid amount greater than zero',
+      });
       return;
     }
 
     try {
-      console.log(`📤 Sending transaction for amount: ₹${amountValue}`);
-      await traditionalTransaction({ amount: amountValue }, token);
-      console.log("✅ Transaction completed successfully on server");
+      await saveTransaction(amountValue, 'Traditional', mobile);
 
-      try {
-        // ✅ Save secure transaction - with specific method parameter
-        console.log("💾 Saving transaction to secure storage");
-        const savedTx = await saveSecureTransaction(amountValue, 'Traditional');
-        console.log(`✅ Transaction saved locally with ID: ${savedTx.id}`);
-      } catch (storageError) {
-        // Still proceed even if local storage fails
-        console.error(`❌ Failed to save transaction locally: ${storageError.message}`);
-      }
+      Toast.show({
+        type: 'success',
+        text1: 'Transaction Saved',
+        text2: 'Proceed to enter your PIN',
+      });
 
-      console.log("=========== 💰 TRADITIONAL TRANSACTION COMPLETE ===========\n");
-      
-      Toast.show({ type: 'success', text1: 'Transaction successful' });
-      navigation.navigate('TransactionSuccessScreen', {
+      navigation.navigate('EnterPinScreen', {
         amount: amountValue,
-        flow: 'Traditional',
+        mobile,
       });
     } catch (error) {
-      console.log("\n=========== ❌ TRADITIONAL TRANSACTION FAILED ===========");
-      console.error('Transaction error:', error);
-      
-      // Detailed error logging
-      if (error.response) {
-        console.log(`❌ Server responded with status: ${error.response.status}`);
-        console.log('❌ Response data:', error.response.data);
-      } else if (error.request) {
-        console.log('❌ No response received:', error.request);
-      } else {
-        console.log(`❌ Error setting up request: ${error.message}`);
-      }
-      
-      console.log("=========== ❌ TRADITIONAL TRANSACTION FAILED ===========\n");
-      
-      Toast.show({ type: 'error', text1: 'Transaction failed' });
+      Toast.show({
+        type: 'error',
+        text1: 'Transaction Save Failed',
+        text2: 'Please try again',
+      });
+      console.error('Failed to save transaction:', error);
     }
-  };
-
-  const handleLogout = async () => {
-    await removeToken('traditional-token');
-    Toast.show({ type: 'info', text1: 'Logged out' });
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'HomeScreen' }],
-    });
   };
 
   return (
     <View style={styles.container}>
-      <Title style={styles.title}>Transfer Amount</Title>
-      <Text style={styles.subtitle}>
-        Enter the amount to be transferred securely
-      </Text>
-
-      <TextInput
-        label="Amount (₹)"
-        value={amount}
-        onChangeText={setAmount}
-        keyboardType="numeric"
-        mode="outlined"
-        style={styles.input}
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <LinearGradient
+        colors={['#1B2B99', '#23C784']}
+        style={styles.background}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       />
 
-      <Button mode="contained" onPress={handleTransaction} style={styles.button}>
-        Submit Transaction
-      </Button>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+      >
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="white" />
+        </TouchableOpacity>
 
-      <Button mode="outlined" onPress={handleLogout} style={styles.logoutButton}>
-        Logout
-      </Button>
+        <Animated.View
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <Text style={styles.title}>Transfer via Mobile</Text>
+          <Text style={styles.subtitle}>Send money securely using mobile number</Text>
+
+          {/* Static label above input */}
+          <Text style={styles.staticLabel}>Mobile Number</Text>
+          <TextInput
+            value={mobile}
+            onChangeText={setMobile}
+            keyboardType="phone-pad"
+            mode="outlined"
+            style={styles.input}
+            maxLength={10}
+            theme={{
+              colors: {
+                primary: '#fff',
+                outline: 'rgba(255,255,255,0.5)',
+                onSurfaceVariant: 'rgba(255,255,255,0.8)',
+              },
+            }}
+            outlineColor="rgba(255,255,255,0.3)"
+            activeOutlineColor="#fff"
+            textColor="#fff"
+            left={<TextInput.Icon icon="phone" iconColor="rgba(255,255,255,0.8)" />}
+          />
+
+          <Text style={styles.staticLabel}>Amount (₹)</Text>
+          <TextInput
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="numeric"
+            mode="outlined"
+            style={styles.input}
+            theme={{
+              colors: {
+                primary: '#fff',
+                outline: 'rgba(255,255,255,0.5)',
+                onSurfaceVariant: 'rgba(255,255,255,0.8)',
+              },
+            }}
+            outlineColor="rgba(255,255,255,0.3)"
+            activeOutlineColor="#fff"
+            textColor="#fff"
+            left={<TextInput.Icon icon="cash" iconColor="rgba(255,255,255,0.8)" />}
+          />
+
+          <Button
+            mode="contained"
+            onPress={handleSubmit}
+            buttonColor="#fff"
+            textColor="#1B2B99"
+            style={styles.button}
+            labelStyle={styles.buttonLabel}
+            contentStyle={{ paddingVertical: 10 }}
+          >
+            Proceed to PIN
+          </Button>
+        </Animated.View>
+      </KeyboardAvoidingView>
+
+      <Toast />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#1e3a8a', textAlign: 'center', marginBottom: 16 },
-  subtitle: { fontSize: 16, textAlign: 'center', color: '#6b7280', marginBottom: 24 },
-  input: { marginBottom: 20 },
-  button: { marginBottom: 20 },
-  logoutButton: { borderColor: '#dc2626' },
+  container: {
+    flex: 1,
+  },
+  background: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    paddingBottom: 24,
+  },
+  backButton: {
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 30,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: Platform.OS === 'android' ? 50 : 70,
+    marginLeft: 20,
+    position: 'absolute',
+    zIndex: 1,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 6,
+    marginTop: 80,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#D4E1FF',
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  staticLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+    marginLeft: 6,
+  },
+  input: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 14,
+    marginBottom: 20,
+  },
+  button: {
+    borderRadius: 14,
+    marginTop: 10,
+    elevation: 3,
+  },
+  buttonLabel: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
 });

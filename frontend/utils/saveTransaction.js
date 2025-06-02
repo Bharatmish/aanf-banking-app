@@ -1,18 +1,31 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const saveTransaction = async (amount, method) => {
+const TRANSACTIONS_KEY = 'transactions';
+
+export const saveTransaction = async (amount, method, mobile) => {
   try {
-    const data = await AsyncStorage.getItem('transactions');
+    const data = await AsyncStorage.getItem(TRANSACTIONS_KEY);
     const transactions = data ? JSON.parse(data) : [];
 
     transactions.push({
       amount,
-      method,
+      method,      // "Traditional" or "AANF"
+      mobile,
       timestamp: new Date().toISOString(),
     });
 
-    await AsyncStorage.setItem('transactions', JSON.stringify(transactions));
+    await AsyncStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(transactions));
   } catch (err) {
     console.error('❌ Failed to save transaction', err);
+  }
+};
+
+export const getTransactions = async () => {
+  try {
+    const data = await AsyncStorage.getItem(TRANSACTIONS_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch (err) {
+    console.error('❌ Failed to get transactions', err);
+    return [];
   }
 };
